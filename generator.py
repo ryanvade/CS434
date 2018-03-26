@@ -132,6 +132,21 @@ def insert_monitor(db, SKU, Name, Description, Release_Date, ManufacturerID, Siz
         print("Unable to insert Monitor")
         sys.exit(1)
 
+def insert_ram(db, SKU, Name, Description, Release_Date, ManufacturerID, Type, Speed):
+    existing_part = get_part_by_sku(db, SKU)
+    if existing_part is not None:
+        return
+    part_id = insert_part(db, SKU, Name, Description, Release_Date, ManufacturerID)
+    if part_id >= 0:
+        conn = db.cursor()
+        conn.execute("""INSERT INTO Ram (ID, Type, Speed)
+                        VALUES (%s, %s, %s)""", (part_id, Type, Speed))
+        db.commit()
+        return (part_id, conn.lastrowid)
+    else:
+        print("Unable to insert Monitor")
+        sys.exit(1)
+
 def get_motherboard(db, RameSlots, MaxRam, PCIESlots, SataPorts, SocketID):
     conn = db.cursor()
     conn.execute("""SELECT * FROM Motherboard WHERE `#RamSlots` = %s AND MaxRam = %s AND `#PCIESlots` = %s AND `#SataPorts` = %s AND SocketID = %s""", (RamSlots, MaxRam, PCIESlots, SataPorts, SocketID))
@@ -285,3 +300,30 @@ if __name__ == '__main__':
                 else:
                     cost = re.findall("\d+", monitor['price'])[0]
                 insert_sells(database, random.choice(stores)['id'], m_id[0], cost)
+    # RAM
+    print("Inserting Ram")
+    total_ram_pages = pcpartpicker.lists.total_pages('memory')
+    for pagenum in range(1, total_monitor_pages + 1):
+        print("Page " + str(pagenum) + " of " + str(total_monitor_pages))
+        memory = pcpartpicker.lists.get_list('memory', pagenum)
+        for ram in memory:
+            manufacturer_name = ram["name"].split(' ', 1)[0].lower()
+            manufaturer = get_manufacturer(database, manufacturer_name)
+            if manufaturer is None:
+                insert_manufacturer(database, manufacturer_name)
+                manufaturer = get_manufacturer(database, manufacturer_name)
+            speed = ram['speed']
+            Type = ram['speed']
+            if ram["name"].lower() == manufacturer_name:
+                # Name is just mname
+                name = manufacturer_name + " " + speed + " " + Type + " " + ram['modules']
+            else:
+                name = ram["name"]
+            description = ram["name"] + " " + speed + " " + Type + " " + ram['modules']
+            r_id = insert_ram(database, "R:" + ram["id"], name, description, random_date(), manufaturer[0], Type, speed)
+            if r_id is not None:
+                if ram['price'] == "":
+                    cost = 0
+                else:
+                    cost = re.findall("\d+", ram['price'])[0]
+                insert_sells(database, random.choice(stores)['id'], r_id[0], cost)

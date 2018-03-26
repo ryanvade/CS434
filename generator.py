@@ -439,12 +439,15 @@ if __name__ == '__main__':
     all_gpus = get_all_graphicscards(database)
     all_monitors = get_all_monitors(database)
     for connectorID in range(0, len(connectors)):
-        monitors = random.sample(all_monitors, random.randint(0, len(all_monitors) / 4 ))
-        gpus = random.sample(all_gpus, random.randint(0, len(all_gpus) / 4))
-        motherboards = random.sample(all_motherboards, random.randint(0, len(all_motherboards) / 4))
+        total = 0
+        monitors = random.sample(all_monitors, random.randint(0, int(len(all_monitors) / 4) ))
+        gpus = random.sample(all_gpus, random.randint(0, int(len(all_gpus) / 4)))
+        motherboards = random.sample(all_motherboards, random.randint(0, int(len(all_motherboards) / 4)))
         for motherboard in motherboards:
             for gpu in gpus:
                 for monitor in monitors:
                     count = random.randint(1, 3)
                     if get_supports_connector(database, motherboard[0], gpu[0], monitor[0], connectorID) is None:
                         insert_supports_connector(database, motherboard[0], gpu[0], monitor[0], connectorID, count)
+                        total = total + 1
+                        print("Total Supports Graphics Added: " + str(total))

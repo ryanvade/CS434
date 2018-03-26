@@ -117,6 +117,21 @@ def insert_motherboard(db, SKU, Name, Description, Release_Date, ManufacturerID,
         print("Unable to insert CPU")
         sys.exit(1)
 
+def insert_monitor(db, SKU, Name, Description, Release_Date, ManufacturerID, Size, Width, Height, Refresh_Rate):
+    existing_part = get_part_by_sku(db, SKU)
+    if existing_part is not None:
+        return
+    part_id = insert_part(db, SKU, Name, Description, Release_Date, ManufacturerID)
+    if part_id >= 0:
+        conn = db.cursor()
+        conn.execute("""INSERT INTO Monitor (ID, Size, Width, Height, Refresh_Rate)
+                        VALUES (%s, %s, %s, %s, %s)""", (part_id, Size, Width, Height, Refresh_Rate))
+        db.commit()
+        return (part_id, conn.lastrowid)
+    else:
+        print("Unable to insert Monitor")
+        sys.exit(1)
+
 def get_motherboard(db, RameSlots, MaxRam, PCIESlots, SataPorts, SocketID):
     conn = db.cursor()
     conn.execute("""SELECT * FROM Motherboard WHERE `#RamSlots` = %s AND MaxRam = %s AND `#PCIESlots` = %s AND `#SataPorts` = %s AND SocketID = %s""", (RamSlots, MaxRam, PCIESlots, SataPorts, SocketID))
@@ -153,7 +168,8 @@ if __name__ == '__main__':
     # Motherboards
     print("Inserting Motherboards")
     total_motherboard_pages = pcpartpicker.lists.total_pages("motherboard")
-    for pagenum in range(1, total_motherboard_pages):
+    for pagenum in range(1, total_motherboard_pages + 1):
+        print("Page " + str(pagenum) + " of " + str(total_motherboard_pages))
         motherboards = pcpartpicker.lists.get_list("motherboard", pagenum)
         for motherboard in motherboards:
             # Get Manufacturer
@@ -204,7 +220,8 @@ if __name__ == '__main__':
     # CPUs
     print("Inserting CPUs")
     total_cpu_pages = pcpartpicker.lists.total_pages("cpu")
-    for pagenum in range(1, total_cpu_pages):
+    for pagenum in range(1, total_cpu_pages + 1):
+        print("Page " + str(pagenum) + " of " + str(total_cpu_pages))
         cpus = pcpartpicker.lists.get_list("cpu", pagenum)
         for cpu in cpus:
             # Determine Manufacturer
@@ -241,3 +258,30 @@ if __name__ == '__main__':
                 else:
                     cost = re.findall("\d+", cpu['price'])[0]
                 insert_sells(database, random.choice(stores)['id'], cpu_id[0], cost)
+    # Monitors
+    print("Inserting Monitors")
+    total_monitor_pages = pcpartpicker.lists.total_pages('monitor')
+    for pagenum in range(1, total_monitor_pages + 1):
+        print("Page " + str(pagenum) + " of " + str(total_monitor_pages))
+        monitors = pcpartpicker.lists.get_list('monitor', pagenum)
+        for monitor in monitors:
+            # Get Manufacturer
+            manufacturer_name = monitor["name"].split(' ', 1)[0].lower()
+            manufaturer = get_manufacturer(database, manufacturer_name)
+            if manufaturer is None:
+                insert_manufacturer(database, manufacturer_name)
+                manufaturer = get_manufacturer(database, manufacturer_name)
+            width = monitor['resolution'].split(' x ', 1)[0]
+            height = monitor['resolution'].split(' x ', 1)[1]
+            size = re.findall("\d+", monitor['size'])[0]
+            refresh_rate = monitor['response-time'].split(' ms', 1)[0]
+            if refresh_rate is None or refresh_rate == "":
+                refresh_rate = 0
+            description = monitor['name'] + " "  + size + " " + " monitor"
+            m_id = insert_monitor(database, "MI:" + monitor['id'], monitor['name'], description, random_date(), manufaturer[0], size, width, height, refresh_rate)
+            if m_id is not None:
+                if monitor['price'] == "":
+                    cost = 0
+                else:
+                    cost = re.findall("\d+", monitor['price'])[0]
+                insert_sells(database, random.choice(stores)['id'], m_id[0], cost)

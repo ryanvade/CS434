@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# https://github.com/PyMySQL/mysqlclient-python
+# https://github.com/thatguywiththatname/PcPartPicker-API
 import re
 import sys
 import random
@@ -14,7 +16,7 @@ def initialize_mysql_connection(host, user, password, db):
 def insert_part(db, SKU, Name, Description, Release_Date, ManufacturerID):
     conn = db.cursor()
     conn.execute("""INSERT INTO Part (SKU, Name, Description, Release_Date, ManufacturerID)
-                 VALUES (%s, %s, %s, %s, %s)""", (SKU, Name[:32], Description, Release_Date, ManufacturerID))
+                 VALUES (%s, %s, %s, %s, %s)""", (SKU.encode('utf-8'), Name.encode('utf-8')[:32], Description.encode('utf-8'), Release_Date, ManufacturerID))
     db.commit()
     return conn.lastrowid
 
@@ -79,13 +81,30 @@ def insert_graphics_connector(db, Name, Version):
     db.commit()
     return conn.lastrowid
 
-
-def insert_supports_connector(db, MotherBoardID, GraphicsCardID, MonitorID, GraphcsConnectorID, Count):
+def get_connector(db, Name, Version):
     conn = db.cursor()
-    conn.execute("""INSERT INTO SupportsConnector (MotherBoardID, GraphicsCardID, MonitorID, GraphcsConnectorID, Count)
-                 VALUES (%s, %s, %s, %s, %s)""", (MotherBoardID, GraphicsCardID, MonitorID, GraphcsConnectorID, Count))
+    conn.execute("""SELECT * FROM GraphicsConnector WHERE Name = %s AND Version = %s""", (Name, Version))
+    return conn.fetchone()
+
+def get_connector_count(db):
+    conn = db.cursor()
+    conn.execute("""SELECT COUNT(*) FROM GraphicsConnector""")
+    return conn.fetchone()
+
+
+def insert_supports_connector(db, MotherBoardID, GraphicsCardID, MonitorID, GraphicsConnectorID, Count):
+    conn = db.cursor()
+    conn.execute("""INSERT INTO SupportsConnector (MotherBoardID, GraphicsCardID, MonitorID, GraphicsConnectorID, Count)
+                 VALUES (%s, %s, %s, %s, %s)""", (MotherBoardID, GraphicsCardID, MonitorID, GraphicsConnectorID, Count))
     db.commit()
     return conn.lastrowid
+
+def get_supports_connector(db, MotherBoardID, GraphicsCardID, MonitorID, GraphicsConnectorID):
+    conn = db.cursor()
+    conn.execute("""SELECT * FROM SupportsConnector WHERE MotherBoardID = %s AND GraphicsCardID = %s AND MonitorID =  %s AND GraphicsConnectorID = %s""",
+                    (MotherBoardID, GraphicsCardID, MonitorID, GraphicsConnectorID))
+    return conn.fetchone()
+
 
 def insert_cpu(db, SKU, Name, Description, Release_Date, ManufacturerID, Cores, vCores, TurboClock, Clock, MaxPowerDraw, SocketID):
     existing_part = get_part_by_sku(db, SKU)
@@ -132,6 +151,11 @@ def insert_monitor(db, SKU, Name, Description, Release_Date, ManufacturerID, Siz
         print("Unable to insert Monitor")
         sys.exit(1)
 
+def get_monitor_count(db):
+    conn = db.cursor()
+    conn.execute("""SELECT COUNT(*) FROM Monitor""")
+    return conn.fetchone()
+
 def insert_ram(db, SKU, Name, Description, Release_Date, ManufacturerID, Type, Speed):
     existing_part = get_part_by_sku(db, SKU)
     if existing_part is not None:
@@ -144,13 +168,48 @@ def insert_ram(db, SKU, Name, Description, Release_Date, ManufacturerID, Type, S
         db.commit()
         return (part_id, conn.lastrowid)
     else:
-        print("Unable to insert Monitor")
+        print("Unable to insert Ram")
         sys.exit(1)
+
+def insert_gpu(db, SKU, Name, Description, Release_Date, ManufacturerID, Shaders, Vram, MinClock, Clock):
+    existing_part = get_part_by_sku(db, SKU)
+    if existing_part is not None:
+        return
+    part_id = insert_part(db, SKU, Name, Description, Release_Date, ManufacturerID)
+    if part_id >= 0:
+        conn = db.cursor()
+        conn.execute("""INSERT INTO GraphicsCard (ID, `#Shaders`, `#Vram`, MinClock, Clock)
+                        VALUES (%s, %s, %s, %s, %s)""", (part_id, str(Shaders), str(Vram), str(MinClock), str(Clock)))
+        db.commit()
+        return (part_id, conn.lastrowid)
+    else:
+        print("Unable to insert GraphicsCard")
+        sys.exit(1)
+
+def get_gpu_count(db):
+    conn = db.cursor()
+    conn.execute("""SELECT COUNT(*) FROM GraphicsCard""")
+    return conn.fetchone()
 
 def get_motherboard(db, RameSlots, MaxRam, PCIESlots, SataPorts, SocketID):
     conn = db.cursor()
     conn.execute("""SELECT * FROM Motherboard WHERE `#RamSlots` = %s AND MaxRam = %s AND `#PCIESlots` = %s AND `#SataPorts` = %s AND SocketID = %s""", (RamSlots, MaxRam, PCIESlots, SataPorts, SocketID))
     return conn.fetchone()
+
+def get_all_motherboards(db):
+    conn = db.cursor()
+    conn.execute("""SELECT * FROM Motherboard""")
+    return conn.fetchall()
+
+def get_all_graphicscards(db):
+    conn = db.cursor()
+    conn.execute("""SELECT * FROM GraphicsCard""")
+    return conn.fetchall()
+
+def get_all_monitors(db):
+    conn = db.cursor()
+    conn.execute("""SELECT * FROM Monitor""")
+    return conn.fetchall()
 
 def random_date():
     start_date = date.today().replace(day=1, month=1, year=2000).toordinal()
@@ -173,6 +232,22 @@ if __name__ == '__main__':
     {   'name': 'superbiiz', 'url': 'https://www.superbiiz.com' },
     {   'name': 'directron', 'url': 'https://www.directron.com/' },
     ]
+    # Graphics Connectors
+    connectors = [
+    { 'name': 'HDMI', 'version' : '1.1a'},
+    { 'name': 'DisplayPort', 'version': '2.0'},
+    { 'name': 'VGA', 'version': '5.0'},
+    { 'name': 'DVI', 'version': 'I'},
+    { 'name': 'DVI', 'version': 'D'}
+    ]
+    print("Inserting Connectors")
+    for connector in connectors:
+        c = get_connector(database, connector['name'], connector['version'])
+        if c is None:
+            insert_graphics_connector(database, connector['name'], connector['version'])
+            c = get_connector(database, connector['name'], connector['version'])
+        connector['id'] = c[0]
+
     print("Inserting Stores")
     for store in stores:
         s = get_store(database, store['name'], store['url'])
@@ -303,8 +378,8 @@ if __name__ == '__main__':
     # RAM
     print("Inserting Ram")
     total_ram_pages = pcpartpicker.lists.total_pages('memory')
-    for pagenum in range(1, total_monitor_pages + 1):
-        print("Page " + str(pagenum) + " of " + str(total_monitor_pages))
+    for pagenum in range(1, total_ram_pages + 1):
+        print("Page " + str(pagenum) + " of " + str(total_ram_pages))
         memory = pcpartpicker.lists.get_list('memory', pagenum)
         for ram in memory:
             manufacturer_name = ram["name"].split(' ', 1)[0].lower()
@@ -312,8 +387,8 @@ if __name__ == '__main__':
             if manufaturer is None:
                 insert_manufacturer(database, manufacturer_name)
                 manufaturer = get_manufacturer(database, manufacturer_name)
-            speed = ram['speed']
-            Type = ram['speed']
+            speed = ram['speed'].split('-', 1)[1]
+            Type = ram['speed'].split('-', 1)[0]
             if ram["name"].lower() == manufacturer_name:
                 # Name is just mname
                 name = manufacturer_name + " " + speed + " " + Type + " " + ram['modules']
@@ -327,3 +402,49 @@ if __name__ == '__main__':
                 else:
                     cost = re.findall("\d+", ram['price'])[0]
                 insert_sells(database, random.choice(stores)['id'], r_id[0], cost)
+
+    # Graphics Cards
+    print("Inserting Graphics Cards")
+    total_gpu_pages = pcpartpicker.lists.total_pages('video-card')
+    for pagenum in range(1, total_gpu_pages + 1):
+        print("Page " + str(pagenum) + " of " + str(total_gpu_pages))
+        gpus = pcpartpicker.lists.get_list('video-card', pagenum)
+        for gpu in gpus:
+            manufacturer_name = gpu["name"].split(' ', 1)[0].lower()
+            manufaturer = get_manufacturer(database, manufacturer_name)
+            if manufaturer is None:
+                insert_manufacturer(database, manufacturer_name)
+                manufaturer = get_manufacturer(database, manufacturer_name)
+            shaders = random.randint(2000, 6000)
+            vram = re.findall("\d+", gpu['memory'])[0]
+            if gpu['core-clock'] is None or gpu['core-clock'] == "" or gpu['core-clock'] == "N/A":
+                minClock = 0
+            else:
+                minClock = re.findall("\d+", gpu['core-clock'])[0]
+            clock = minClock
+            description = gpu['name'] + " " + gpu['chipset']
+            name = gpu['name']
+            g_id = insert_gpu(database, "G:" + gpu["id"], name, description, random_date(), manufaturer[0], shaders, vram, minClock, clock)
+            if g_id is not None:
+                if gpu['price'] == "":
+                    cost = 0
+                else:
+                    cost = re.findall("\d+", gpu['price'])[0]
+                insert_sells(database, random.choice(stores)['id'], g_id[0], cost)
+
+
+    # Setup SupportsConnector
+    print("Adding Graphics Connectors")
+    all_motherboards = get_all_motherboards(database)
+    all_gpus = get_all_graphicscards(database)
+    all_monitors = get_all_monitors(database)
+    for connectorID in range(0, len(connectors)):
+        monitors = random.sample(all_monitors, random.randint(0, len(all_monitors) / 4 ))
+        gpus = random.sample(all_gpus, random.randint(0, len(all_gpus) / 4))
+        motherboards = random.sample(all_motherboards, random.randint(0, len(all_motherboards) / 4))
+        for motherboard in motherboards:
+            for gpu in gpus:
+                for monitor in monitors:
+                    count = random.randint(1, 3)
+                    if get_supports_connector(database, motherboard[0], gpu[0], monitor[0], connectorID) is None:
+                        insert_supports_connector(database, motherboard[0], gpu[0], monitor[0], connectorID, count)

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# By Ryan Owens
+# For CS434 Project 4
 # https://github.com/PyMySQL/mysqlclient-python
 # https://github.com/thatguywiththatname/PcPartPicker-API
 import re
